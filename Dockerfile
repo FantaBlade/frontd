@@ -1,18 +1,21 @@
-FROM golang:latest
-MAINTAINER Tomasen "https://github.com/tomasen"
-
-# Copy the local package files to the container's workspace.
-ADD . /go/src/github.com/xindong/frontd
+FROM golang:alpine as builder
 
 # change workdir, build and install
-WORKDIR /go/src/github.com/xindong/frontd
-RUN go get .
-RUN go install
+WORKDIR /go/src/github.com/FantaBlade/frontd
 
-RUN rm -rf /go/src/*
+# Copy the local package files to the container's workspace.
+COPY . /go/src/github.com/FantaBlade/frontd
+
+RUN go get . \
+    && go install
+
+FROM alpine:latest
+
 WORKDIR /go/bin
 
+COPY --from=builder /go/bin .
+
 # Run the frontd command by default when the container starts.
-ENTRYPOINT /go/bin/frontd
+ENTRYPOINT ["/go/bin/frontd"]
 
 EXPOSE 4043

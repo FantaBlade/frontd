@@ -1,0 +1,3 @@
+[submodule "go-openssl"]
+	path = go-openssl
+	url = https://github.com/Luzifer/go-openssl

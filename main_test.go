@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/xindong/frontd/aes256cbc"
-	"github.com/xindong/frontd/reuse"
+	"github.com/FantaBlade/frontd/go-openssl"
+	"github.com/libp2p/go-reuseport"
 	"golang.org/x/net/websocket"
 )
 
@@ -28,7 +28,7 @@ var (
 	_httpServerAddr      = []byte("127.0.0.1:62865")
 	_websocketServerAddr = []byte("127.0.0.1:62866")
 	_expectAESCiphertext = []byte("U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=")
-	_secret              = []byte("p0S8rX680*48")
+	_secret              = "p0S8rX680*48"
 	_defaultFrontdAddr   = "127.0.0.1:" + strconv.Itoa(_DefaultPort)
 )
 
@@ -53,7 +53,7 @@ func TestMain(m *testing.M) {
 	os.Setenv("SECRET", string(_secret))
 	os.Setenv("BACKEND_TIMEOUT", "1")
 	os.Setenv("MAX_HTTP_HEADER_SIZE", "1024")
-	os.Setenv("PPROF_PORT", "62866")
+	os.Setenv("PPROF_PORT", "62867")
 
 	go main()
 
@@ -114,9 +114,7 @@ func servEcho() {
 
 // TestTextDecryptAES ---
 func TestTextDecryptAES(t *testing.T) {
-	o := aes256cbc.New()
-
-	dec, err := o.DecryptString(_secret, _expectAESCiphertext)
+	dec, err := decrypt(_secret, _expectAESCiphertext)
 	if err != nil {
 		panic(err)
 	}
@@ -127,7 +125,7 @@ func TestTextDecryptAES(t *testing.T) {
 
 // TestHTTPServer ---
 func TestHTTPServer(t *testing.T) {
-	cipherAddr, err := encryptText(_httpServerAddr, _secret)
+	cipherAddr, err := encrypt(_secret, _httpServerAddr)
 	if err != nil {
 		panic(err)
 	}
@@ -142,14 +140,17 @@ func TestHTTPServer(t *testing.T) {
 	testWebSocketServer(hdrs, "OK127.0.0.1")
 }
 
-func encryptText(plaintext, passphrase []byte) ([]byte, error) {
-	o := aes256cbc.New()
+func encrypt(passphrase string, plaintext []byte) ([]byte, error) {
+	o := openssl.New()
+	return o.EncryptBytes(passphrase, plaintext, openssl.DigestMD5Sum)
+}
 
-	return o.EncryptString(passphrase, plaintext)
+func decrypt(passphrase string, plaintext []byte) ([]byte, error) {
+	o := openssl.New()
+	return o.DecryptBytes(passphrase, plaintext, openssl.DigestMD5Sum)
 }
 
 func testHTTPServer(hdrs map[string]string, expected string) {
-
 	client := &http.Client{}
 	req, _ := http.NewRequest("GET", "http://"+string(_defaultFrontdAddr), nil)
 	for k, v := range hdrs {
@@ -259,7 +260,7 @@ func randomBytes(n int) []byte {
 
 // TestProtocolDecrypt ---
 func TestProtocolDecrypt(*testing.T) {
-	b, err := encryptText(_echoServerAddr, _secret)
+	b, err := encrypt(_secret, _echoServerAddr)
 	if err != nil {
 		panic(err)
 	}
@@ -296,9 +297,6 @@ func testProtocol(cipherAddr, expected []byte) {
 			panic(err)
 		}
 		if !bytes.Equal(expected, buf[:n]) {
-			fmt.Println(buf[:n])
-			fmt.Println(string(buf[:n]))
-			fmt.Println(string(expected))
 			panic("expected reply not matched")
 		}
 		return
@@ -311,8 +309,7 @@ func testProtocol(cipherAddr, expected []byte) {
 
 // TestBinaryProtocolDecrypt ---
 func TestBinaryProtocolDecrypt(*testing.T) {
-	o := aes256cbc.New()
-	b, err := o.Encrypt(_secret, _echoServerAddr)
+	b, err := encrypt(_secret, _echoServerAddr)
 	if err != nil {
 		panic(err)
 	}
@@ -320,7 +317,7 @@ func TestBinaryProtocolDecrypt(*testing.T) {
 }
 
 func TestBackendError(*testing.T) {
-	b, err := encryptText(_blackHoleServerAddr, _secret)
+	b, err := encrypt(_secret, _blackHoleServerAddr)
 	if err != nil {
 		panic(err)
 	}
@@ -345,7 +342,7 @@ func TestDecryptError(*testing.T) {
 }
 
 func TestBackendTimeout(*testing.T) {
-	b, err := encryptText([]byte("8.8.8.8:80"), _secret)
+	b, err := encrypt(_secret, []byte("8.8.8.8:80"))
 	if err != nil {
 		panic(err)
 	}
@@ -368,7 +365,7 @@ func BenchmarkEncryptText(b *testing.B) {
 	s1 := randomBytes(255)
 	s2 := randomBytes(32)
 	for i := 0; i < b.N; i++ {
-		_, err := encryptText(s1, s2)
+		_, err := encrypt(string(s2), s1)
 		if err != nil {
 			panic(err)
 		}
@@ -377,8 +374,7 @@ func BenchmarkEncryptText(b *testing.B) {
 
 func BenchmarkDecryptText(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		o := aes256cbc.New()
-		_, err := o.DecryptString(_secret, _expectAESCiphertext)
+		_, err := decrypt(_secret, _expectAESCiphertext)
 		if err != nil {
 			panic(err)
 		}
@@ -392,7 +388,7 @@ func BenchmarkEcho(b *testing.B) {
 }
 
 func BenchmarkLatency(b *testing.B) {
-	cipherAddr, err := encryptText(_echoServerAddr, _secret)
+	cipherAddr, err := encrypt(_secret, _echoServerAddr)
 	if err != nil {
 		panic(err)
 	}
@@ -418,7 +414,7 @@ func BenchmarkEchoParallel(b *testing.B) {
 }
 
 func BenchmarkLatencyParallel(b *testing.B) {
-	cipherAddr, err := encryptText(_echoServerAddr, _secret)
+	cipherAddr, err := encrypt(_secret, _echoServerAddr)
 	if err != nil {
 		panic(err)
 	}

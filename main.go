@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -22,7 +21,7 @@ import (
 
 	_ "net/http/pprof"
 
-	"github.com/xindong/frontd/aes256cbc"
+	"github.com/FantaBlade/frontd/go-openssl"
 )
 
 const (
@@ -39,8 +38,8 @@ var (
 )
 
 var (
-	_SecretPassphase []byte
-	_Aes256CBC       = aes256cbc.New()
+	_SecretPassphase string
+	_Aes256CBC       = openssl.New()
 )
 
 var (
@@ -70,7 +69,7 @@ func main() {
 		syscall.Setrlimit(syscall.RLIMIT_NOFILE, &lim)
 	}
 
-	_SecretPassphase = []byte(os.Getenv("SECRET"))
+	_SecretPassphase = os.Getenv("SECRET")
 
 	mhs, err := strconv.Atoi(os.Getenv("MAX_HTTP_HEADER_SIZE"))
 	if err == nil && mhs > _minHTTPHeaderSize {
@@ -177,15 +176,7 @@ func handleConn(c net.Conn) {
 			}
 		}
 
-		// base64 decode
-		dbuf := make([]byte, base64.StdEncoding.DecodedLen(len(cipherAddr)))
-		n, err := base64.StdEncoding.Decode(dbuf, cipherAddr)
-		if err != nil {
-			writeErrCode(c, []byte("4106"), false)
-			return
-		}
-
-		addr, err = backendAddrDecrypt(dbuf[:n])
+		addr, err = backendAddrDecrypt(cipherAddr)
 		if err != nil {
 			writeErrCode(c, []byte("4106"), false)
 			return
@@ -347,7 +338,7 @@ func backendAddrDecrypt(key []byte) ([]byte, error) {
 	}
 
 	// Try to decrypt it (AES)
-	addr, err := _Aes256CBC.Decrypt(_SecretPassphase, key)
+	addr, err := _Aes256CBC.DecryptBytes(_SecretPassphase, key, openssl.DigestMD5Sum)
 	if err != nil {
 		return nil, err
 	}

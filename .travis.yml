@@ -3,23 +3,28 @@ language: go
 go:
   - tip
 
+# Only clone the most recent commit.
+git:
+  depth: 1
+
+# Don't email me the results of the test runs.
+notifications:
+  email: false
 
 before_install:
-    - go get golang.org/x/tools/cmd/vet
     - go get golang.org/x/tools/cmd/cover
-    - go get github.com/golang/lint/golint
+    - go get golang.org/x/lint/golint
     - go get github.com/mattn/goveralls
-    - go get golang.org/x/net/websocket
 
 install:
-    - go get -d -v ./... && go build -v ./...
+    - go get -t ./... && go build ./...
 
 script:
     - go vet -x ./...
-    - $HOME/gopath/bin/golint ./...
+    - $GOPATH/bin/golint ./...
     - go test -v ./...
     - go test -covermode=count -coverprofile=profile.cov .
 
 after_script:
-    - $HOME/gopath/bin/goveralls -coverprofile=profile.cov -service=travis-ci
-    - go test  -benchmem -bench .
+    - $GOPATH/bin/goveralls -coverprofile=profile.cov -service=travis-ci
+    - go test -benchmem -bench .
