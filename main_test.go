@@ -264,10 +264,10 @@ func TestProtocolDecrypt(*testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	testProtocol(append(b, '\n'), nil)
+	testProtocol(append(b, '\n'), []byte("4100"))
 
 	// test cached hitted
-	testProtocol(append(b, '\n'), nil)
+	testProtocol(append(b, '\n'), []byte("4100"))
 }
 
 func testProtocol(cipherAddr, expected []byte) {
@@ -313,7 +313,7 @@ func TestBinaryProtocolDecrypt(*testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	testProtocol(append(append([]byte{0}, byte(len(b))), b...), nil)
+	testProtocol(append(append([]byte{0}, byte(len(b))), b...), []byte("4100"))
 }
 
 func TestBackendError(*testing.T) {

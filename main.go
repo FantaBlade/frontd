@@ -144,6 +144,8 @@ func handleConn(c net.Conn) {
 
 	rdr := bufio.NewReader(c)
 
+	var isTCP = true
+
 	addr, err := handleBinaryHdr(rdr, c)
 	if err != nil {
 		if err != io.EOF {
@@ -174,6 +176,7 @@ func handleConn(c net.Conn) {
 				log.Println(err)
 				return
 			}
+			isTCP = false
 		}
 
 		addr, err = backendAddrDecrypt(cipherAddr)
@@ -186,7 +189,7 @@ func handleConn(c net.Conn) {
 	// TODO: check if addr is allowed
 
 	// Build tunnel
-	err = tunneling(string(addr), rdr, c, header)
+	err = tunneling(string(addr), rdr, c, header, isTCP)
 	if err != nil {
 		log.Println(err)
 	}
@@ -289,7 +292,7 @@ func handleHTTPHdr(rdr *bufio.Reader, c net.Conn, header *bytes.Buffer) (addr []
 }
 
 // tunneling to backend
-func tunneling(addr string, rdr *bufio.Reader, c net.Conn, header *bytes.Buffer) error {
+func tunneling(addr string, rdr *bufio.Reader, c net.Conn, header *bytes.Buffer, isTCP bool) error {
 	backend, err := dialTimeout("tcp", addr, time.Second*time.Duration(_BackendDialTimeout))
 	if err != nil {
 		// handle error
@@ -311,6 +314,11 @@ func tunneling(addr string, rdr *bufio.Reader, c net.Conn, header *bytes.Buffer)
 
 	// Start transfering data
 	go pipe(c, backend, c, backend)
+
+	if isTCP {
+		writeErrCode(c, []byte("4100"), false)
+	}
+
 	pipe(backend, rdr, backend, c)
 
 	return nil
