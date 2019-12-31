@@ -11,6 +11,9 @@ RUN go get . \
 
 FROM alpine:latest
 
+# Give /etc/hosts file priority
+RUN  echo "hosts: files dns" > /etc/nsswitch.conf
+
 WORKDIR /go/bin
 
 COPY --from=builder /go/bin .
